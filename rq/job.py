@@ -195,11 +195,31 @@ class Job(object):
         """The Redis key that is used to store job hash under."""
         return self.key_for(self.id)
 
+    @classmethod
+    def result_ready_key_for(cls, job_id):
+        return '%s:result_ready' % (cls.key_for(job_id),)
+
+    @property
+    def result_ready_key(self):
+        return self.result_ready_key_for(self.id)
+
     @property  # noqa
     def job_tuple(self):
         """Returns the job tuple that encodes the actual function call that
         this job represents."""
         return (self.func_name, self.instance, self.args, self.kwargs)
+
+    def get_result(self, timeout=None):
+        rv = self.result
+        if rv or timeout is None:
+            return rv
+
+        key = self.result_ready_key
+        # block until an element is available or timeout expires
+        # push back onto same list so subsequent calls return
+        self.connection.brpoplpush(key, key, timeout)
+
+        return self.result
 
     @property
     def result(self):
@@ -306,6 +326,7 @@ class Job(object):
     def delete(self):
         """Deletes the job hash from Redis."""
         self.connection.delete(self.key)
+        self.connection.delete(self.result_ready_key)
 
 
     # Job execution

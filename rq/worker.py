@@ -424,8 +424,10 @@ class Worker(object):
             p = self.connection.pipeline()
             p.hset(job.key, 'result', pickled_rv)
             p.hset(job.key, 'status', job._status)
+            p.rpush(job.result_ready_key, '_UNUSED_')
             if result_ttl > 0:
                 p.expire(job.key, result_ttl)
+                p.expire(job.result_ready_key, result_ttl)
                 self.log.info('Result is kept for %d seconds.' % result_ttl)
             else:
                 self.log.warning('Result will never expire, clean up result key manually.')
